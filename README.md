@@ -32,14 +32,23 @@ Single binary. 2-minute setup. Zero dependencies.
 
 ### Install
 
-```bash
-# Download the latest release
-curl -sL https://github.com/hostatlas-labs/sentinel/releases/latest/download/sentinel_linux_amd64.tar.gz | tar xz
-sudo mv sentinel /usr/local/bin/
+**Direct download (CDN):**
 
-# Or with Go
+```bash
+VERSION=$(curl -fsSL https://tools.hostatlas.app/sentinel/latest.json | jq -r .version)
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+curl -fsSL "https://tools.hostatlas.app/sentinel/${VERSION}/sentinel_${VERSION}_${OS}_${ARCH}.tar.gz" | tar xz
+sudo mv sentinel /usr/local/bin/
+```
+
+**With Go:**
+
+```bash
 go install github.com/hostatlas-labs/sentinel/cmd/sentinel@latest
 ```
+
+**Manual:** Browse all releases at [github.com/hostatlas-labs/sentinel/releases](https://github.com/hostatlas-labs/sentinel/releases).
 
 ### Configure
 
