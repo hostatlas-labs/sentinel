@@ -55,3 +55,23 @@ release:
   draft: false
   prerelease: auto
   name_template: "sentinel v{{.Version}}"
+
+brews:
+  - name: sentinel
+    repository:
+      owner: hostatlas-labs
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://tools.hostatlas.app"
+    description: "Lightweight SSH & login attack alerter daemon"
+    license: MIT
+    install: |
+      bin.install "sentinel"
+    test: |
+      system "#{bin}/sentinel", "--version"
+    commit_author:
+      name: hostatlas-labs-bot
+      email: hello@hostatlas.app
+    commit_msg_template: "brew: bump sentinel to {{ .Tag }}"
