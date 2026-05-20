@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -24,6 +25,7 @@ jobs:
           go-version: '1.23'
 
       - name: Run GoReleaser
+        if: github.event_name == 'push'
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -33,6 +35,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release artifacts to R2
+        if: github.event_name == 'push'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -42,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
+          BASE_URL="https://tools.hostatlas.app/${TOOL_NAME}/${VERSION}/"
 
           echo "Publishing ${TOOL_NAME} v${VERSION} to R2 bucket: ${R2_BUCKET}"
           echo "Target prefix: ${TOOL_NAME}/${VERSION}/"
@@ -55,21 +59,61 @@ jobs:
               --endpoint-url "${R2_ENDPOINT}"
           done
 
-          # Generate latest.json manifest.
+          # Generate per-tool latest.json manifest.
           FILES_JSON=$(cd dist && ls *.tar.gz checksums.txt 2>/dev/null | jq -R . | jq -s .)
           jq -n \
             --arg tool "${TOOL_NAME}" \
             --arg version "${VERSION}" \
             --arg released_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg base_url "${BASE_URL}" \
             --argjson files "${FILES_JSON}" \
-            '{tool: $tool, version: $version, released_at: $released_at, files: $files}' \
+            '{tool: $tool, version: $version, released_at: $released_at, base_url: $base_url, files: $files}' \
             > latest.json
 
-          echo "Manifest:"
+          echo "Per-tool manifest:"
           cat latest.json
 
           aws s3 cp latest.json "s3://${R2_BUCKET}/${TOOL_NAME}/latest.json" \
             --endpoint-url "${R2_ENDPOINT}" \
             --content-type application/json
 
-          echo "Done."
+      - name: Update aggregated tools.json
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+
+          TOOLS=(sentinel atlasmap dockertop portwatch)
+          AGG="{}"
+
+          echo "Building aggregated tools.json from existing R2 manifests..."
+          for t in "${TOOLS[@]}"; do
+            tmp="/tmp/latest-${t}.json"
+            if aws s3 cp "s3://${R2_BUCKET}/${t}/latest.json" "$tmp" \
+              --endpoint-url "${R2_ENDPOINT}" 2>/dev/null; then
+              AGG=$(echo "$AGG" | jq --arg t "$t" --slurpfile l "$tmp" \
+                '.[$t] = {latest: $l[0].version, released_at: $l[0].released_at, base_url: $l[0].base_url, files: $l[0].files}')
+              echo "  + ${t}: $(jq -r .version "$tmp")"
+            else
+              echo "  - ${t}: no latest.json on R2 (not yet released)"
+            fi
+          done
+
+          # Add timestamp metadata.
+          AGG=$(echo "$AGG" | jq --arg gen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '. + {_generated_at: $gen}')
+
+          echo "$AGG" | jq . > tools.json
+
+          echo "Aggregated tools.json:"
+          cat tools.json
+
+          aws s3 cp tools.json "s3://${R2_BUCKET}/tools.json" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --content-type application/json
+
+          echo "Done — tools.json available at https://tools.hostatlas.app/tools.json"
