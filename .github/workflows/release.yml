@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TOOL_NAME: sentinel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release artifacts to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          echo "Publishing ${TOOL_NAME} v${VERSION} to R2 bucket: ${R2_BUCKET}"
+          echo "Target prefix: ${TOOL_NAME}/${VERSION}/"
+
+          # Upload binary archives + checksums.
+          for f in dist/*.tar.gz dist/checksums.txt; do
+            [ -f "$f" ] || continue
+            name="$(basename "$f")"
+            echo "  -> ${name}"
+            aws s3 cp "$f" "s3://${R2_BUCKET}/${TOOL_NAME}/${VERSION}/${name}" \
+              --endpoint-url "${R2_ENDPOINT}"
+          done
+
+          # Generate latest.json manifest.
+          FILES_JSON=$(cd dist && ls *.tar.gz checksums.txt 2>/dev/null | jq -R . | jq -s .)
+          jq -n \
+            --arg tool "${TOOL_NAME}" \
+            --arg version "${VERSION}" \
+            --arg released_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson files "${FILES_JSON}" \
+            '{tool: $tool, version: $version, released_at: $released_at, files: $files}' \
+            > latest.json
+
+          echo "Manifest:"
+          cat latest.json
+
+          aws s3 cp latest.json "s3://${R2_BUCKET}/${TOOL_NAME}/latest.json" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --content-type application/json
+
+          echo "Done."

@@ -1,0 +1,31 @@
+# Binaries
+/sentinel
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build output
+dist/
+
+# Test output
+*.test
+*.out
+coverage.txt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+
+# Config with secrets
+.sentinel.yml

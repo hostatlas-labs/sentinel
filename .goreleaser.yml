@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
+version: 2
+
+project_name: sentinel
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: sentinel
+    main: ./cmd/sentinel
+    binary: sentinel
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    tags:
+      - netgo
+
+archives:
+  - id: sentinel
+    ids:
+      - sentinel
+    formats:
+      - tar.gz
+    name_template: "sentinel_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: hostatlas-labs
+    name: sentinel
+  draft: false
+  prerelease: auto
+  name_template: "sentinel v{{.Version}}"
