@@ -95,9 +95,12 @@ jobs:
             tmp="/tmp/latest-${t}.json"
             if aws s3 cp "s3://${R2_BUCKET}/${t}/latest.json" "$tmp" \
               --endpoint-url "${R2_ENDPOINT}" 2>/dev/null; then
-              AGG=$(echo "$AGG" | jq --arg t "$t" --slurpfile l "$tmp" \
-                '.[$t] = {latest: $l[0].version, released_at: $l[0].released_at, base_url: $l[0].base_url, files: $l[0].files}')
-              echo "  + ${t}: $(jq -r .version "$tmp")"
+              VER=$(jq -r .version "$tmp")
+              DEFAULT_BASE="https://tools.hostatlas.app/${t}/${VER}/"
+              BASE=$(jq -r --arg default "$DEFAULT_BASE" '.base_url // $default' "$tmp")
+              AGG=$(echo "$AGG" | jq --arg t "$t" --slurpfile l "$tmp" --arg base "$BASE" \
+                '.[$t] = {latest: $l[0].version, released_at: $l[0].released_at, base_url: $base, files: $l[0].files}')
+              echo "  + ${t}: ${VER}"
             else
               echo "  - ${t}: no latest.json on R2 (not yet released)"
             fi
