@@ -32,15 +32,17 @@ Single binary. 2-minute setup. Zero dependencies.
 
 ### Install
 
-**Direct download (CDN):**
+**One-liner:**
 
 ```bash
-VERSION=$(curl -fsSL https://tools.hostatlas.app/sentinel/latest.json | jq -r .version)
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
-curl -fsSL "https://tools.hostatlas.app/sentinel/${VERSION}/sentinel_${VERSION}_${OS}_${ARCH}.tar.gz" | tar xz
-sudo mv sentinel /usr/local/bin/
+curl -fsSL https://tools.hostatlas.app/install.sh | sh -s sentinel
 ```
+
+The installer detects your OS + architecture, downloads the right
+binary, verifies the SHA-256, and installs to `/usr/local/bin`.
+
+Add `--user` for a `$HOME/.local/bin` install without sudo, or
+`--version=1.0.0` to pin a specific release.
 
 **With Go:**
 
@@ -48,7 +50,13 @@ sudo mv sentinel /usr/local/bin/
 go install github.com/hostatlas-labs/sentinel/cmd/sentinel@latest
 ```
 
-**Manual:** Browse all releases at [github.com/hostatlas-labs/sentinel/releases](https://github.com/hostatlas-labs/sentinel/releases).
+**Homebrew (macOS, Linuxbrew):**
+
+```bash
+brew install hostatlas-labs/tap/sentinel
+```
+
+**Manual:** Browse all releases at [github.com/hostatlas-labs/sentinel/releases](https://github.com/hostatlas-labs/sentinel/releases) or [tools.hostatlas.app](https://tools.hostatlas.app/tools.json).
 
 ### Configure
 
